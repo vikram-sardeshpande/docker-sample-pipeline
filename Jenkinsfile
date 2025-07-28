@@ -23,34 +23,34 @@
                    }
                   }
             }
-    //        stage('Quality Gate Check') {
-      //      steps {
-       //         waitForQualityGate abortPipeline: true
-        //    }
-    //    }
-      //                  stage('Upload Artifact to Nexus') {
-    //            steps {
-      //              script {
-        //                withCredentials([usernamePassword(credentialsId: 'nexus', passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
-          //                  nexusArtifactUploader(
-        //                        nexusVersion: 'nexus3',
-         //                       protocol: 'http',
-          //                      nexusUrl: 'localhost:8081',
-        //                        version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
-          //                      groupId: 'com.javatpoint',
-        //                        repository: 'persistentwebapp',
-         //                       credentialsId: 'nexus',
-          //                      artifacts: [
-        //                            [artifactId: 'PersistentWebApp',
-         //                           classifier: '',
-          //                          file: 'target/PersistentWebApp.war',
-        //                            type: 'war']
-         //                       ]
-          //                  )
-        //                }
-         //           }
-          //      }
-        //                }
+            stage('Quality Gate Check') {
+            steps {
+                waitForQualityGate abortPipeline: true
+            }
+        }
+                        stage('Upload Artifact to Nexus') {
+                steps {
+                   script {
+                        withCredentials([usernamePassword(credentialsId: 'nexus', passwordVariable: 'NEXUS_PASSWORD', usernameVariable: 'NEXUS_USERNAME')]) {
+                            nexusArtifactUploader(
+                                nexusVersion: 'nexus3',
+                                protocol: 'http',
+                                nexusUrl: 'localhost:8081',
+                                version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
+                                groupId: 'com.javatpoint',
+                                repository: 'persistentwebapp',
+                                credentialsId: 'nexus',
+                                artifacts: [
+                                    [artifactId: 'PersistentWebApp',
+                                    classifier: '',
+                                    file: 'target/PersistentWebApp.war',
+                                    type: 'war']
+                                ]
+                            )
+                        }
+                    }
+                }
+                        }
         stage('Snyk Scan') {
     steps {
         script {
@@ -108,18 +108,24 @@
         }
         stage ('Deploy Container') {
                 steps {
-                    # Stop and remove existing container
+                //    # Stop and remove existing container
                     echo "Attempting to stop and remove existing container..."
                     sh 'docker stop mywebapp || true'
                     sh 'docker rm -f mywebapp || true'
                     echo "Deploy new container"
-                    sh 'docker run -it --name mywebapp -d -p 9090:8080 ${dockerTag}'
+                    sh "docker run -it --name mywebapp -d -p 9090:8080 ${NEXUS_DOCKER_REPO}/${IMAGE_NAME}:${env.BUILD_NUMBER}"
                     echo "New container deployed"
 
                   }
             }
-
-
+             stage('DAST OWASP ZAP Scans') {
+            steps {
+                script {
+                    sh 'docker run -v $(pwd):/zap/wrk/:rw --network="host" zaproxy/zap-stable zap-baseline.py -I -t http://localhost:9090/PersistentWebApp -r OWASP-ZAP-scan-report.html'
+                    archiveArtifacts artifacts: 'OWASP-ZAP-scan-report.html'
+                 }
+            }
+             }
 
   }
   }
